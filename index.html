@@ -3699,15 +3699,28 @@ const DEFAULT_ZONE = ZONES[0];
    the same sheet column; a renamed header in Sheet1 will not silently blank
    out a zone. */
 const normKey = s => String(s ?? '').trim().toLowerCase().replace(/[\s_\-]+/g,'');
-/* Accepts /qassim, /qassim/, /qassim.html, /zones/qassim/index.html. */
+/* Three ways to name a zone, checked in this order:
+     1. ?zone=qassim        — works on ANY host, no server config (GitHub Pages)
+     2. #qassim             — same, for links that must stay query-free
+     3. /qassim/            — clean path, needs a rewrite or a folder per zone
+   Anything unrecognised falls back to ALL PHARMACY rather than erroring. */
+function matchZone(token){
+  const want=normKey(String(token||'').replace(/\.(html?|php)$/i,''));
+  if(!want)return null;
+  return ZONES.find(z=>z.slug&&(normKey(z.slug)===want||normKey(z.column)===want))||null;
+}
 function resolveZone(){
+  let q='';
+  try{q=new URLSearchParams(location.search).get('zone')||''}catch{}
+  let hit=matchZone(q);
+  if(hit)return hit;
+  hit=matchZone(String(location.hash||'').replace(/^#\/?/,''));
+  if(hit)return hit;
   const parts=String(location.pathname||'').split('/').filter(Boolean)
     .map(s=>{try{return decodeURIComponent(s)}catch{return s}})
-    .map(s=>s.replace(/\.(html?|php)$/i,''))
-    .filter(s=>!/^index$/i.test(s));
+    .filter(s=>!/^index(\.(html?|php))?$/i.test(s));
   for(let i=parts.length-1;i>=0;i--){
-    const want=normKey(parts[i]);
-    const hit=ZONES.find(z=>z.slug&&(normKey(z.slug)===want||normKey(z.column)===want));
+    hit=matchZone(parts[i]);
     if(hit)return hit;
   }
   return DEFAULT_ZONE;
